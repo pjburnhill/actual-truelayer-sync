@@ -1,7 +1,7 @@
 import { importTransactions } from '../actual/actual'
 import { getAccountTransactions, getCardTransactions } from '../truelayer/truelayer'
 import { transformTransactions } from '../transform/transform'
-import { computeFromDate } from '../utils/date'
+import { computeFromDate, dateTimeToYMD } from '../utils/date'
 import { resolveIsCard } from '../utils/account'
 import { buildImportSummary, logNetworkError } from '../utils/logging'
 import type { Account, Connection } from '../config/schema'
@@ -45,8 +45,8 @@ export async function syncAccount(
 
   console.log(`${prefix} └ Found ${transactions.length} transactions.`)
   const dates = trueLayerTransactions.map((t) => t.timestamp).sort()
-  const from = dates[0].slice(0, 10)
-  const to = dates[dates.length - 1].slice(0, 10)
+  const from = dateTimeToYMD(dates[0])
+  const to = dateTimeToYMD(dates[dates.length - 1])
 
   try {
     const result = await importTransactions(configAccount.actualId, transactions)
