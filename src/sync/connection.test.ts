@@ -76,6 +76,7 @@ describe('syncConnection', () => {
       'new-access',
       expect.any(Map),
       false,
+      false,
     )
   })
 

@@ -5,6 +5,8 @@ import { syncConnection } from './sync/connection'
 import { log, logError } from './utils/logger'
 import type { Config } from './config/schema'
 
+const dryRun = process.argv.includes('--dry-run')
+
 async function mainTask(config: Config): Promise<void> {
   try {
     await initActual({
@@ -15,9 +17,15 @@ async function mainTask(config: Config): Promise<void> {
     })
 
     for (let i = 0; i < config.connections.length; i++) {
-      const updated = await syncConnection(config.connections[i], config)
+      const connection = config.connections[i]
+      const updated = await syncConnection(connection, config, dryRun)
       if (updated) {
-        config.connections[i] = updated
+        if (dryRun) {
+          // Save config back for refresh token changes during a dry run
+          config.connections[i] = { ...connection, refreshToken: updated.refreshToken }
+        } else {
+          config.connections[i] = updated
+        }
         await writeConfig(config)
       }
     }
@@ -38,7 +46,18 @@ void (async () => {
     process.exit(1)
   }
 
+  if (dryRun) {
+    log(['DRY RUN'], 'No transactions will be imported and no runs will be scheduled.')
+  }
+
   await mainTask(config)
+
+  if (dryRun) {
+    if (config.env.CRON_SCHEDULE) {
+      log(['DRY RUN'], `Would have scheduled: ${config.env.CRON_SCHEDULE}`)
+    }
+    return
+  }
 
   if (config.env.CRON_SCHEDULE) {
     const timezone = config.env.TZ

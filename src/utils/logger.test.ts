@@ -17,13 +17,13 @@ describe('log', () => {
   it('formats a single prefix', () => {
     log(['My Bank'], 'Authenticating...')
     const output = vi.mocked(console.log).mock.calls[0][0] as string
-    expect(output).toMatch(/\[My Bank\] Authenticating\.\.\.$/)
+    expect(output).toMatch(/\[My Bank] Authenticating\.\.\.$/)
   })
 
   it('formats multiple prefixes', () => {
     log(['My Bank', 'Current Account'], 'Fetching...')
     const output = vi.mocked(console.log).mock.calls[0][0] as string
-    expect(output).toMatch(/\[My Bank\]\[Current Account\] Fetching\.\.\.$/)
+    expect(output).toMatch(/\[My Bank]\[Current Account] Fetching\.\.\.$/)
   })
 })
 
@@ -34,7 +34,7 @@ describe('logError', () => {
   it('logs message with prefix and no error', () => {
     logError(['My Bank'], 'Something failed')
     const output = vi.mocked(console.error).mock.calls[0][0] as string
-    expect(output).toMatch(/\[My Bank\] Something failed$/)
+    expect(output).toMatch(/\[My Bank] Something failed$/)
   })
 
   it('logs axios error response data', () => {
@@ -46,7 +46,7 @@ describe('logError', () => {
 
     logError(['My Bank'], 'Authentication failed:', axiosError)
 
-    expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/\[My Bank\] Authentication failed:$/), {
+    expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/\[My Bank] Authentication failed:$/), {
       error: 'invalid_client',
     })
   })
@@ -56,7 +56,7 @@ describe('logError', () => {
 
     logError(['My Bank'], 'Failed:', new Error('Network error'))
 
-    expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/\[My Bank\] Failed:$/), 'Network error')
+    expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/\[My Bank] Failed:$/), 'Network error')
   })
 
   it('logs unknown errors directly', () => {
@@ -64,6 +64,6 @@ describe('logError', () => {
 
     logError(['My Bank'], 'Failed:', 'some string error')
 
-    expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/\[My Bank\] Failed:$/), 'some string error')
+    expect(console.error).toHaveBeenCalledWith(expect.stringMatching(/\[My Bank] Failed:$/), 'some string error')
   })
 })

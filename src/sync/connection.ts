@@ -6,7 +6,11 @@ import { log, logError } from '../utils/logger'
 import type { Account, Connection, Config } from '../config/schema'
 import type { TrueLayerAccount, TrueLayerCard } from '../truelayer/types'
 
-export async function syncConnection(connection: Connection, config: Config): Promise<Connection | undefined> {
+export async function syncConnection(
+  connection: Connection,
+  config: Config,
+  dryRun = false,
+): Promise<Connection | undefined> {
   const startedAt = Date.now()
   const prefix = [connection.name]
   log(prefix, 'Starting sync, authenticating with TrueLayer...')
@@ -45,6 +49,7 @@ export async function syncConnection(connection: Connection, config: Config): Pr
       accessToken,
       trueLayerAccountsById,
       config.includeCategoryInNotes,
+      dryRun,
     )
     updatedAccounts.push(hadTransactions ? { ...configAccount, lastSyncDate: currentDate() } : configAccount)
   }

@@ -14,6 +14,7 @@ export async function syncAccount(
   accessToken: string,
   trueLayerAccountsById: Map<string, TrueLayerAccount | TrueLayerCard>,
   includeCategoryInNotes: boolean,
+  dryRun = false,
 ): Promise<boolean> {
   const prefix = [connection.name, configAccount.friendlyName]
   const fromDate = configAccount.lastSyncDate ? computeFromDate(configAccount.lastSyncDate) : undefined
@@ -48,6 +49,11 @@ export async function syncAccount(
   const dates = trueLayerTransactions.map((t) => t.timestamp).sort()
   const from = dates[0].slice(0, 10)
   const to = dates[dates.length - 1].slice(0, 10)
+
+  if (dryRun) {
+    log(prefix, `└ [DRY RUN] Would import ${transactions.length} transactions (${from} → ${to}).`)
+    return false
+  }
 
   try {
     const result = await importTransactions(configAccount.actualId, transactions)

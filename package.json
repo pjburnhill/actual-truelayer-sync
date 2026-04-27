@@ -7,6 +7,7 @@
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/sync.js",
     "dev": "tsx --env-file=.env src/sync.ts",
+    "dev:dry-run": "tsx --env-file=.env src/sync.ts --dry-run",
     "test": "vitest run",
     "test:watch": "vitest",
     "check:types": "tsc --project tsconfig.build.json --noEmit",
