@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { AccountSchema, ConnectionSchema, FileConfigSchema, EnvSchema } from '../src/config'
+import { AccountSchema, ConnectionSchema, EnvSchema, FileConfigSchema } from './schema'
 
 describe('AccountSchema', () => {
   const validAccount = {

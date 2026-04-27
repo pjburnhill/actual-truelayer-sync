@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolveIsCard } from './account'
-import type { Account, Connection } from '../config'
+import { Account, Connection } from '../config/schema'
 
 const baseAccount: Account = {
   trueLayerId: 'tl-1',

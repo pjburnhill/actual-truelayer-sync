@@ -1,14 +1,14 @@
 import axios from 'axios'
 import cron from 'node-cron'
-import { loadConfig, writeConfig } from './config'
+import { loadConfig, writeConfig } from './config/config'
 import { initActual, importTransactions, shutdownActual } from './actual'
 import { refreshToken, listAccounts, listCards, getAccountTransactions, getCardTransactions } from './truelayer'
 import { transformTransactions } from './transform'
 import { computeFromDate } from './utils/date'
 import { resolveIsCard } from './utils/account'
 import { buildImportSummary } from './utils/logging'
-import type { Connection, Config } from './config'
 import type { TrueLayerAccount, TrueLayerCard } from './types'
+import { Config, Connection } from './config/schema'
 
 async function syncConnection(connection: Connection, config: Config): Promise<void> {
   const startedAt = Date.now()
