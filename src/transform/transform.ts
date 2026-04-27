@@ -1,6 +1,6 @@
-import type { TrueLayerTransaction, TrueLayerAccount, TrueLayerCard } from './truelayer/types'
+import type { TrueLayerTransaction, TrueLayerAccount, TrueLayerCard } from '../truelayer/types'
 
-import { Account } from './config/schema'
+import { Account } from '../config/schema'
 
 export interface ActualTransaction {
   account: string

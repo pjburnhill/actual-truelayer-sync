@@ -1,6 +1,6 @@
 import { importTransactions } from '../actual/actual'
 import { getAccountTransactions, getCardTransactions } from '../truelayer/truelayer'
-import { transformTransactions } from '../transform'
+import { transformTransactions } from '../transform/transform'
 import { computeFromDate } from '../utils/date'
 import { resolveIsCard } from '../utils/account'
 import { buildImportSummary } from '../utils/logging'
