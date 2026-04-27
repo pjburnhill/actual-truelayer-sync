@@ -3,7 +3,7 @@ import path from 'path'
 import { Config, EnvSchema, FileConfigSchema } from './schema'
 import { log } from '../utils/logger'
 
-const CONFIG_PATH = path.join(__dirname, '..', '..', 'data', 'config.json')
+const CONFIG_PATH = path.resolve(__dirname, '..', '..', 'data', 'config.json')
 
 export async function loadConfig(): Promise<Config> {
   // Validate environment variables
@@ -19,6 +19,13 @@ export async function loadConfig(): Promise<Config> {
     const text = await fs.readFile(CONFIG_PATH, 'utf-8')
     raw = JSON.parse(text)
   } catch (err) {
+    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+      throw new Error(
+        `Config file not found at ${CONFIG_PATH}.\n` +
+          `Make sure the data directory is volume-mounted and config.json exists.\n` +
+          `See config.example.json for the expected format.`,
+      )
+    }
     throw new Error(`Failed to read config at ${CONFIG_PATH}: ${String(err)}`)
   }
 
