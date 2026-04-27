@@ -107,4 +107,22 @@ describe('syncAccount', () => {
 
     expect(result).toBe(false)
   })
+
+  it('returns false when fetching transactions fails', async () => {
+    vi.mocked(truelayer.getAccountTransactions).mockRejectedValueOnce(new Error('Network error'))
+
+    const result = await syncAccount({ ...baseAccount }, baseConnection, 'access-token', emptyAccountsById, false)
+
+    expect(result).toBe(false)
+    expect(actual.importTransactions).not.toHaveBeenCalled()
+  })
+
+  it('returns false when importing transactions fails', async () => {
+    vi.mocked(truelayer.getAccountTransactions).mockResolvedValueOnce([mockTransaction])
+    vi.mocked(actual.importTransactions).mockRejectedValueOnce(new Error('Import error'))
+
+    const result = await syncAccount({ ...baseAccount }, baseConnection, 'access-token', accountsById, false)
+
+    expect(result).toBe(false)
+  })
 })

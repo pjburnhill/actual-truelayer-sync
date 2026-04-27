@@ -2,7 +2,7 @@ import { refreshToken } from '../truelayer/truelayer'
 import { syncAccount } from './account'
 import { fetchAccountMap } from './accounts'
 import { currentDate } from '../utils/date'
-import type { Connection, Config } from '../config/schema'
+import type { Account, Connection, Config } from '../config/schema'
 import { logNetworkError } from '../utils/logging'
 import type { TrueLayerAccount, TrueLayerCard } from '../truelayer/types'
 
@@ -37,26 +37,20 @@ export async function syncConnection(connection: Connection, config: Config): Pr
     return { ...connection, refreshToken: newRefreshToken }
   }
 
-  try {
-    const updatedAccounts = await Promise.all(
-      connection.accounts.map(async (configAccount) => {
-        const hadTransactions = await syncAccount(
-          configAccount,
-          connection,
-          accessToken,
-          trueLayerAccountsById,
-          config.includeCategoryInNotes,
-        )
-        return hadTransactions ? { ...configAccount, lastSyncDate: currentDate() } : configAccount
-      }),
+  const updatedAccounts: Account[] = []
+  for (const configAccount of connection.accounts) {
+    const hadTransactions = await syncAccount(
+      configAccount,
+      connection,
+      accessToken,
+      trueLayerAccountsById,
+      config.includeCategoryInNotes,
     )
-
-    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
-    console.log(`[${connection.name}] Done in ${elapsed}s.`)
-
-    return { ...connection, refreshToken: newRefreshToken, accounts: updatedAccounts }
-  } catch (err) {
-    logNetworkError(`[${connection.name}] Sync failed:`, err)
-    return { ...connection, refreshToken: newRefreshToken }
+    updatedAccounts.push(hadTransactions ? { ...configAccount, lastSyncDate: currentDate() } : configAccount)
   }
+
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
+  console.log(`[${connection.name}] Done in ${elapsed}s.`)
+
+  return { ...connection, refreshToken: newRefreshToken, accounts: updatedAccounts }
 }

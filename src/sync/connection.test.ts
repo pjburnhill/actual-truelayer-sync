@@ -128,7 +128,7 @@ describe('syncConnection', () => {
     expect(result).toBeUndefined()
   })
 
-  it('returns partial connection with new token when sync fails after authentication', async () => {
+  it('returns partial connection with new token when fetchAccountMap fails', async () => {
     vi.mocked(truelayer.refreshToken).mockResolvedValueOnce({
       access_token: 'new-access',
       refresh_token: 'new-refresh',

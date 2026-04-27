@@ -3,9 +3,9 @@ import { getAccountTransactions, getCardTransactions } from '../truelayer/truela
 import { transformTransactions } from '../transform/transform'
 import { computeFromDate } from '../utils/date'
 import { resolveIsCard } from '../utils/account'
-import { buildImportSummary } from '../utils/logging'
+import { buildImportSummary, logNetworkError } from '../utils/logging'
 import type { Account, Connection } from '../config/schema'
-import type { TrueLayerAccount, TrueLayerCard } from '../truelayer/types'
+import type { TrueLayerAccount, TrueLayerCard, TrueLayerTransaction } from '../truelayer/types'
 
 export async function syncAccount(
   configAccount: Account,
@@ -20,9 +20,15 @@ export async function syncAccount(
   console.log(`${prefix} Fetching transactions${fromDate ? ` since ${fromDate}` : ''}...`)
 
   const isCard = resolveIsCard(configAccount, connection)
-  const trueLayerTransactions = isCard
-    ? await getCardTransactions(accessToken, configAccount.trueLayerId, fromDate)
-    : await getAccountTransactions(accessToken, configAccount.trueLayerId, fromDate)
+  let trueLayerTransactions: TrueLayerTransaction[]
+  try {
+    trueLayerTransactions = isCard
+      ? await getCardTransactions(accessToken, configAccount.trueLayerId, fromDate)
+      : await getAccountTransactions(accessToken, configAccount.trueLayerId, fromDate)
+  } catch (err) {
+    logNetworkError(`${prefix} Failed to fetch transactions:`, err)
+    return false
+  }
 
   const trueLayerAccount = trueLayerAccountsById.get(configAccount.trueLayerId)
   const transactions = transformTransactions(
@@ -41,7 +47,14 @@ export async function syncAccount(
   const dates = trueLayerTransactions.map((t) => t.timestamp).sort()
   const from = dates[0].slice(0, 10)
   const to = dates[dates.length - 1].slice(0, 10)
-  const result = await importTransactions(configAccount.actualId, transactions)
-  console.log(`${prefix} └ ${buildImportSummary(result.added.length, result.updated.length)} (${from} → ${to}).`)
+
+  try {
+    const result = await importTransactions(configAccount.actualId, transactions)
+    console.log(`${prefix} └ ${buildImportSummary(result.added.length, result.updated.length)} (${from} → ${to}).`)
+  } catch (err) {
+    logNetworkError(`${prefix} Failed to import transactions:`, err)
+    return false
+  }
+
   return true
 }
