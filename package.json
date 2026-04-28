@@ -6,8 +6,10 @@
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/sync.js",
+    "setup": "tsx scripts/setup.ts",
     "dev": "tsx --env-file=.env src/sync.ts",
     "dev:dry-run": "tsx --env-file=.env src/sync.ts --dry-run",
+    "dev:setup": "tsx --env-file=.env scripts/setup.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "check:types": "tsc --project tsconfig.build.json --noEmit",
@@ -21,6 +23,7 @@
   },
   "dependencies": {
     "@actual-app/api": "26.4.0",
+    "@inquirer/prompts": "8.4.2",
     "axios": "1.15.2",
     "node-cron": "4.2.1",
     "zod": "4.3.6"

@@ -1,3 +1,13 @@
+export type TrueLayerMe = {
+  credentials_id: string
+  client_id: string
+  provider: {
+    display_name: string
+    provider_id: string
+    logo_uri?: string
+  }
+}
+
 export type TrueLayerAccount = {
   update_timestamp: string
   account_id: string

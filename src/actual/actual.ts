@@ -28,6 +28,10 @@ export async function importTransactions(
   return { added: result.added, updated: result.updated }
 }
 
+export async function getAccounts(): Promise<Array<{ id: string; name: string; closed: boolean }>> {
+  return actual.getAccounts()
+}
+
 export async function shutdownActual(): Promise<void> {
   await actual.shutdown()
 }
