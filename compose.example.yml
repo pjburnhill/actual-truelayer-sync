@@ -16,9 +16,9 @@ services:
       - TRUELAYER_CLIENT_SECRET=[TRUELAYER_CLIENT_SECRET]
       - CRON_SCHEDULE=0 */4 * * * # Example: Every 4 hours
     healthcheck:
-      # Health check that the config.json file has been modified recently, indicating that the sync process is running and updating the file as expected.
+      # Health check that state.json has been modified recently, indicating the sync is running successfully.
       # 300 minutes (5 hours) against a 4-hour schedule — gives an hour of buffer
-      test: ["CMD-SHELL", "find /app/data/config.json -mmin -300 | grep -q ."]
+      test: ["CMD-SHELL", "find /app/data/state.json -mmin -300 | grep -q ."]
       interval: 60s
       timeout: 5s
       retries: 3
