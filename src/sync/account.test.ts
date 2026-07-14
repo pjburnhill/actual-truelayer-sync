@@ -18,6 +18,7 @@ const baseAccount: Account = {
   trueLayerId: 'acc-1',
   actualId: 'actual-acc-1',
   friendlyName: 'Current Account',
+  importStartDate: '2026-04-01',
 }
 
 const mockTrueLayerAccount: TrueLayerAccount = {
@@ -50,6 +51,7 @@ const baseOptions = {
   lookbackDays: 14,
   trueLayerAccountsById,
   includeCategoryInNotes: false,
+  onFailure: vi.fn(),
 }
 
 describe('syncAccount', () => {
@@ -92,6 +94,20 @@ describe('syncAccount', () => {
     expect(actual.importTransactions).not.toHaveBeenCalled()
   })
 
+  it('imports only transactions on or after the configured cutoff', async () => {
+    vi.mocked(truelayer.getAccountTransactions).mockResolvedValueOnce([
+      { ...mockTransaction, transaction_id: 'before-cutoff', timestamp: '2026-03-31T10:00:00Z' },
+      { ...mockTransaction, transaction_id: 'on-cutoff', timestamp: '2026-04-01T10:00:00Z' },
+    ])
+    vi.mocked(actual.importTransactions).mockResolvedValueOnce({ added: ['on-cutoff'], updated: [] })
+
+    await syncAccount({ ...baseOptions, configAccount: baseAccount })
+
+    expect(actual.importTransactions).toHaveBeenCalledWith('actual-acc-1', [
+      expect.objectContaining({ imported_id: 'on-cutoff', date: '2026-04-01' }),
+    ])
+  })
+
   it('returns true after successful import', async () => {
     vi.mocked(truelayer.getAccountTransactions).mockResolvedValueOnce([mockTransaction])
     vi.mocked(actual.importTransactions).mockResolvedValueOnce({ added: ['txn-1'], updated: [] })
@@ -124,6 +140,17 @@ describe('syncAccount', () => {
 
     expect(result).toBe(false)
     expect(actual.importTransactions).not.toHaveBeenCalled()
+    expect(baseOptions.onFailure).toHaveBeenCalledWith('sync_failed')
+  })
+
+  it('classifies provider authorization failures as expired consent', async () => {
+    vi.mocked(truelayer.getAccountTransactions).mockRejectedValueOnce(
+      Object.assign(new Error('Unauthorized'), { isAxiosError: true, response: { status: 401 } }),
+    )
+
+    await syncAccount({ ...baseOptions, configAccount: baseAccount })
+
+    expect(baseOptions.onFailure).toHaveBeenCalledWith('consent_expired')
   })
 
   it('returns false when importing transactions fails', async () => {
@@ -133,6 +160,7 @@ describe('syncAccount', () => {
     const result = await syncAccount({ ...baseOptions, configAccount: baseAccount })
 
     expect(result).toBe(false)
+    expect(baseOptions.onFailure).toHaveBeenCalledWith('sync_failed')
   })
 
   it('returns false and does not import when dryRun is true', async () => {

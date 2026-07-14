@@ -6,15 +6,17 @@
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
     "start": "node dist/sync.js",
-    "setup": "tsx scripts/setup.ts",
+    "setup": "node dist/setup.js",
+    "healthcheck": "node dist/healthcheck.js",
     "dev": "tsx --env-file=.env src/sync.ts",
     "dev:dry-run": "tsx --env-file=.env src/sync.ts --dry-run",
-    "dev:setup": "tsx --env-file=.env scripts/setup.ts",
+    "dev:setup": "tsx --env-file=.env src/setup.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:dependencies": "node scripts/check-dependencies.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
     "check:types": "tsc --project tsconfig.build.json --noEmit",
-    "docker:build": "docker build -t actual-truelayer-sync .",
-    "docker:run": "docker run --rm --env-file=.env -v ./data:/app/data actual-truelayer-sync"
+    "docker:build": "docker build -t actual-truelayer-sync ."
   },
   "author": "Chris Sheppard",
   "license": "MIT",
@@ -22,7 +24,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@actual-app/api": "26.6.0",
+    "@actual-app/api": "26.7.0",
     "@inquirer/prompts": "8.4.2",
     "axios": "1.17.0",
     "node-cron": "4.2.1",

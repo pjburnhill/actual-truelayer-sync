@@ -1,6 +1,13 @@
 import axios from 'axios'
-import type { TrueLayerAccount, TrueLayerCard, TrueLayerMe, TrueLayerTransaction, TrueLayerTokenResponse } from './types'
+import type {
+  TrueLayerAccount,
+  TrueLayerCard,
+  TrueLayerMe,
+  TrueLayerTransaction,
+  TrueLayerTokenResponse,
+} from './types'
 import { NETWORK_TIMEOUT } from '../utils/network'
+import { withTransientRetry } from '../utils/retry'
 
 const BASE_URL = 'https://api.truelayer.com/data/v1'
 const AUTH_URL = 'https://auth.truelayer.com/connect/token'
@@ -8,7 +15,8 @@ const AUTH_URL = 'https://auth.truelayer.com/connect/token'
 function sanitiseTrueLayerError(err: unknown): never {
   if (axios.isAxiosError(err)) {
     const status = err.response?.status
-    const code = err.response?.data?.error ?? 'unknown_error'
+    const rawCode = typeof err.response?.data?.error === 'string' ? err.response.data.error : ''
+    const code = /^[a-z][a-z0-9_-]{0,63}$/.test(rawCode) ? rawCode : 'request_failed'
     throw new Error(`TrueLayer request failed: ${status ?? 'no status'} — ${code}`)
   }
   throw err
@@ -61,25 +69,33 @@ export async function refreshToken(
 }
 
 export async function getMe(accessToken: string): Promise<TrueLayerMe> {
-  const res = await axios.get<{ results: TrueLayerMe[] }>(`${BASE_URL}/me`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-    timeout: NETWORK_TIMEOUT,
+  return withTransientRetry(async () => {
+    const res = await axios.get<{ results: TrueLayerMe[] }>(`${BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: NETWORK_TIMEOUT,
+    })
+    return res.data.results[0]
   })
-  return res.data.results[0]
 }
 
 export async function listAccounts(accessToken: string): Promise<TrueLayerAccount[]> {
-  const res = await axios.get<{ results: TrueLayerAccount[] }>(`${BASE_URL}/accounts`, {
-    headers: { Authorization: `Bearer ${accessToken}`, timeout: NETWORK_TIMEOUT },
+  return withTransientRetry(async () => {
+    const res = await axios.get<{ results: TrueLayerAccount[] }>(`${BASE_URL}/accounts`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: NETWORK_TIMEOUT,
+    })
+    return res.data.results
   })
-  return res.data.results
 }
 
 export async function listCards(accessToken: string): Promise<TrueLayerCard[]> {
-  const res = await axios.get<{ results: TrueLayerCard[] }>(`${BASE_URL}/cards`, {
-    headers: { Authorization: `Bearer ${accessToken}`, timeout: NETWORK_TIMEOUT },
+  return withTransientRetry(async () => {
+    const res = await axios.get<{ results: TrueLayerCard[] }>(`${BASE_URL}/cards`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: NETWORK_TIMEOUT,
+    })
+    return res.data.results
   })
-  return res.data.results
 }
 
 export async function getAccountTransactions(
@@ -88,11 +104,14 @@ export async function getAccountTransactions(
   from?: string,
 ): Promise<TrueLayerTransaction[]> {
   const params = from ? { from } : {}
-  const res = await axios.get<{ results: TrueLayerTransaction[] }>(`${BASE_URL}/accounts/${accountId}/transactions`, {
-    headers: { Authorization: `Bearer ${accessToken}`, timeout: NETWORK_TIMEOUT },
-    params,
+  return withTransientRetry(async () => {
+    const res = await axios.get<{ results: TrueLayerTransaction[] }>(`${BASE_URL}/accounts/${accountId}/transactions`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: NETWORK_TIMEOUT,
+      params,
+    })
+    return res.data.results
   })
-  return res.data.results
 }
 
 export async function getCardTransactions(
@@ -101,9 +120,12 @@ export async function getCardTransactions(
   from?: string,
 ): Promise<TrueLayerTransaction[]> {
   const params = from ? { from } : {}
-  const res = await axios.get<{ results: TrueLayerTransaction[] }>(`${BASE_URL}/cards/${cardId}/transactions`, {
-    headers: { Authorization: `Bearer ${accessToken}`, timeout: NETWORK_TIMEOUT },
-    params,
+  return withTransientRetry(async () => {
+    const res = await axios.get<{ results: TrueLayerTransaction[] }>(`${BASE_URL}/cards/${cardId}/transactions`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      timeout: NETWORK_TIMEOUT,
+      params,
+    })
+    return res.data.results
   })
-  return res.data.results
 }

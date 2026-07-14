@@ -10,10 +10,11 @@ import { input, select, checkbox, confirm } from '@inquirer/prompts'
 import fs from 'fs'
 import path from 'path'
 import { z } from 'zod'
-import { exchangeCode, getMe, listAccounts, listCards } from '../src/truelayer/truelayer'
-import { initActual, getAccounts, shutdownActual } from '../src/actual/actual'
-import { readJSON, writeJSON } from '../src/utils/file'
-import type { FileConfig, State } from '../src/config/schema'
+import { exchangeCode, getMe, listAccounts, listCards } from './truelayer/truelayer'
+import { initActual, getAccounts, shutdownActual } from './actual/actual'
+import { readJSON, writeJSON } from './utils/file'
+import { EnvSchema, type FileConfig, type State } from './config/schema'
+import { readSecretFile } from './config/secrets'
 
 // Paths
 const DATA_DIR = path.resolve(__dirname, '..', 'data')
@@ -55,21 +56,18 @@ async function main(): Promise<void> {
   console.log('\nactual-truelayer-sync — connection setup\n')
 
   // 1. Validate environment
-  const SetupEnvSchema = z.object({
-    TRUELAYER_CLIENT_ID: z.string().min(1),
-    TRUELAYER_CLIENT_SECRET: z.string().min(1),
-    ACTUAL_SERVER_URL: z.url(),
-    ACTUAL_SERVER_PASSWORD: z.string().min(1),
-    ACTUAL_SYNC_ID: z.uuid(),
-  })
-
-  const envResult = SetupEnvSchema.safeParse(process.env)
+  const envResult = EnvSchema.safeParse(process.env)
   if (!envResult.success) {
     const missing = envResult.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n')
     console.error(`Missing or invalid environment variables:\n${missing}`)
     process.exit(1)
   }
   const env = envResult.data
+  const trueLayerClientSecret = await readSecretFile(env.TRUELAYER_CLIENT_SECRET_FILE, 'TrueLayer client secret')
+  const actualSyncId = z.uuid().parse(await readSecretFile(env.ACTUAL_SYNC_ID_FILE, 'Actual Sync ID'))
+  const actualAuth = env.ACTUAL_SESSION_TOKEN_FILE
+    ? { sessionToken: await readSecretFile(env.ACTUAL_SESSION_TOKEN_FILE, 'Actual session token') }
+    : { password: await readSecretFile(env.ACTUAL_PASSWORD_FILE!, 'Actual password') }
 
   // 2. Load existing config / state (may not exist on first run)
   const existingConfig = await tryReadJSON<FileConfig>(CONFIG_PATH)
@@ -126,7 +124,7 @@ async function main(): Promise<void> {
   let accessToken: string
   let newRefreshToken: string
   try {
-    const tokens = await exchangeCode(env.TRUELAYER_CLIENT_ID, env.TRUELAYER_CLIENT_SECRET, code, redirectUri)
+    const tokens = await exchangeCode(env.TRUELAYER_CLIENT_ID, trueLayerClientSecret, code, redirectUri)
     accessToken = tokens.access_token
     newRefreshToken = tokens.refresh_token
   } catch (err) {
@@ -201,6 +199,7 @@ async function main(): Promise<void> {
     trueLayerId: string
     actualId: string
     friendlyName: string
+    importStartDate: string
     isCard?: boolean
   }
 
@@ -214,15 +213,15 @@ async function main(): Promise<void> {
     try {
       await initActual({
         serverURL: env.ACTUAL_SERVER_URL,
-        password: env.ACTUAL_SERVER_PASSWORD,
-        syncId: env.ACTUAL_SYNC_ID,
+        auth: actualAuth,
+        syncId: actualSyncId,
         verbose: false,
       })
       const all = await getAccounts()
       actualAccounts = all.filter((a) => !a.closed && !mappedActualIds.has(a.id))
     } catch (err) {
       console.error(`Could not connect to Actual Budget: ${err instanceof Error ? err.message : String(err)}`)
-      console.log('Skipping account mapping — add actualId values to config.json manually.\n')
+      console.log('Skipping account mapping; add the account mappings to config.json manually.\n')
     } finally {
       try {
         await shutdownActual()
@@ -259,15 +258,22 @@ async function main(): Promise<void> {
           default: tlAccount.label,
         })
         skippedAccounts.push({ ...tlAccount, friendlyName: friendlyName.trim() || tlAccount.label })
-        console.log(`  Skipped. Add this manually to config.json: trueLayerId = "${trueLayerId}"`)
+        console.log('  Skipped. Add this account manually after setup.')
         continue
       }
 
       const abAccount = actualAccounts.find((a) => a.id === actualId)!
+      const importStartDate = (
+        await input({
+          message: `First date to import for "${tlAccount.label}" (YYYY-MM-DD):`,
+          validate: (value) => z.string().date().safeParse(value.trim()).success || 'Enter YYYY-MM-DD',
+        })
+      ).trim()
       const account: MappedAccount = {
         trueLayerId,
         actualId,
         friendlyName: abAccount.name,
+        importStartDate,
       }
       if (connectionType === 'cards') account.isCard = true
       mappedAccounts.push(account)
@@ -284,7 +290,7 @@ async function main(): Promise<void> {
   console.log(`Type            : ${connectionType}`)
   console.log(`Accounts to add : ${mappedAccounts.length}`)
   for (const a of mappedAccounts) {
-    console.log(`  • ${a.friendlyName} (${a.trueLayerId} → ${a.actualId})`)
+    console.log(`  • ${a.friendlyName} (imports from ${a.importStartDate})`)
   }
   if (skippedAccounts.length > 0) {
     console.log(`Skipped         : ${skippedAccounts.map((a) => a.friendlyName ?? a.label).join(', ')}`)
@@ -333,7 +339,7 @@ async function main(): Promise<void> {
   if (skippedAccounts.length > 0) {
     console.log('\nRemember to add these accounts to config.json once created in Actual Budget:')
     for (const a of skippedAccounts) {
-      console.log(`  • ${a.friendlyName ?? a.label}  —  trueLayerId: "${a.id}"`)
+      console.log(`  • ${a.friendlyName ?? a.label}`)
     }
   }
 }

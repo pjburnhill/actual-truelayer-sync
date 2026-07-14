@@ -6,6 +6,7 @@ const baseAccount: Account = {
   trueLayerId: 'tl-1',
   actualId: 'a-1',
   friendlyName: 'My Account',
+  importStartDate: '2026-07-15',
 }
 
 const baseConnection: Connection = {

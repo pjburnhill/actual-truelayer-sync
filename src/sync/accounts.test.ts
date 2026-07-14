@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import axios from 'axios'
 import type { Connection } from '../config/schema'
 import * as truelayer from '../truelayer/truelayer'
+import * as logger from '../utils/logger'
 import type { TrueLayerAccount, TrueLayerCard } from '../truelayer/types'
 import { fetchAccountMap } from './accounts'
 
@@ -11,7 +12,14 @@ vi.mock('../utils/logger')
 
 const baseConnection: Connection = {
   name: 'My Bank',
-  accounts: [{ trueLayerId: 'acc-1', actualId: 'a-1', friendlyName: 'Current Account' }],
+  accounts: [
+    {
+      trueLayerId: 'acc-1',
+      actualId: 'a-1',
+      friendlyName: 'Current Account',
+      importStartDate: '2026-07-15',
+    },
+  ],
 }
 
 const mockAccount: TrueLayerAccount = {
@@ -86,5 +94,23 @@ describe('fetchAccountMap', () => {
     const result = await fetchAccountMap(baseConnection, 'token')
     expect(result.size).toBe(2)
     expect(result.get('acc-unmatched')).toEqual(unmatchedAccount)
+  })
+
+  it('does not log unmatched TrueLayer identifiers', async () => {
+    const unmatchedAccount: TrueLayerAccount = {
+      ...mockAccount,
+      account_id: 'sensitive-account-id',
+      account_type: 'SAVINGS',
+      display_name: 'Savings',
+    }
+    vi.mocked(truelayer.listAccounts).mockResolvedValueOnce([unmatchedAccount])
+
+    await fetchAccountMap(baseConnection, 'token')
+
+    const output = JSON.stringify(vi.mocked(logger.log).mock.calls)
+    expect(output).toContain('Savings')
+    expect(output).toContain('SAVINGS')
+    expect(output).not.toContain('sensitive-account-id')
+    expect(output).not.toContain('trueLayerId')
   })
 })

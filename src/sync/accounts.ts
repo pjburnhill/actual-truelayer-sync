@@ -27,7 +27,7 @@ export async function fetchAccountMap(
       for (const a of unmatched) {
         const detail =
           'account_type' in a ? ` (${(a as TrueLayerAccount).account_type})` : ` (${(a as TrueLayerCard).card_type})`
-        log(prefix, `  └ ${a.display_name}${detail} — trueLayerId: ${a.account_id}`)
+        log(prefix, `  └ ${a.display_name}${detail}`)
       }
     }
 
