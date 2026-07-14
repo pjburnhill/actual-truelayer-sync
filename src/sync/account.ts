@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { importTransactions } from '../actual/actual'
 import { getAccountTransactions, getCardTransactions } from '../truelayer/truelayer'
 import { transformTransactions } from '../transform/transform'
@@ -7,6 +8,7 @@ import { buildImportSummary } from '../utils/logging'
 import { log, logError } from '../utils/logger'
 import { filterTransactionsByStartDate } from './cutoff'
 import type { Account, Connection } from '../config/schema'
+import type { HealthReason } from '../runtime/health'
 import type { TrueLayerAccount, TrueLayerCard, TrueLayerTransaction } from '../truelayer/types'
 
 interface SyncAccountOptions {
@@ -18,6 +20,7 @@ interface SyncAccountOptions {
   lookbackDays: number
   lastSyncDate?: string
   dryRun?: boolean
+  onFailure: (reason: HealthReason) => void
 }
 
 export async function syncAccount({
@@ -29,6 +32,7 @@ export async function syncAccount({
   lookbackDays,
   lastSyncDate,
   dryRun = false,
+  onFailure,
 }: SyncAccountOptions): Promise<boolean> {
   const prefix = [connection.name, configAccount.friendlyName]
   const fromDate = lastSyncDate ? computeFromDate(lastSyncDate, lookbackDays) : undefined
@@ -43,6 +47,8 @@ export async function syncAccount({
       : await getAccountTransactions(accessToken, configAccount.trueLayerId, fromDate)
   } catch (err) {
     logError(prefix, 'Failed to fetch transactions:', err)
+    const status = axios.isAxiosError(err) ? err.response?.status : undefined
+    onFailure(status === 401 || status === 403 ? 'consent_expired' : 'sync_failed')
     return false
   }
 
@@ -75,6 +81,7 @@ export async function syncAccount({
     log(prefix, `└ ${buildImportSummary(result.added.length, result.updated.length)} (${from} → ${to}).`)
   } catch (err) {
     logError(prefix, 'Failed to import transactions:', err)
+    onFailure('sync_failed')
     return false
   }
 
