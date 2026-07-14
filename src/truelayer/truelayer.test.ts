@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import axios from 'axios'
-import { refreshToken, listAccounts, listCards, getAccountTransactions, getCardTransactions } from './truelayer'
+import { refreshToken, listAccounts, listCards, getAccountTransactions, getCardTransactions, getMe } from './truelayer'
 import type { TrueLayerAccount, TrueLayerCard, TrueLayerTransaction } from './types'
+import { NETWORK_TIMEOUT } from '../utils/network'
 
 vi.mock('axios')
 const mockedAxios = vi.mocked(axios, true)
@@ -90,6 +91,33 @@ describe('refreshToken', () => {
 
     await expect(refreshToken('id', 'secret', 'token')).rejects.toThrow('Network failure')
   })
+
+  it('does not retry refresh-token rotation after a transient response', async () => {
+    const axiosError = Object.assign(new Error('Unavailable'), {
+      isAxiosError: true,
+      response: { status: 503, data: { error: 'temporarily_unavailable' } },
+    })
+    mockedAxios.post.mockRejectedValue(axiosError)
+    mockedAxios.isAxiosError.mockReturnValue(true)
+
+    await expect(refreshToken('id', 'secret', 'token')).rejects.toThrow('TrueLayer request failed')
+    expect(mockedAxios.post).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('getMe', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('sets a top-level request timeout', async () => {
+    mockedAxios.get.mockResolvedValueOnce({ data: { results: [{ provider: { display_name: 'Bank' } }] } })
+
+    await getMe('my-token')
+
+    expect(mockedAxios.get.mock.calls[0][1]).toMatchObject({
+      headers: { Authorization: 'Bearer my-token' },
+      timeout: NETWORK_TIMEOUT,
+    })
+  })
 })
 
 describe('listAccounts', () => {
@@ -105,12 +133,27 @@ describe('listAccounts', () => {
   it('sends Bearer token in Authorization header', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { results: [] } })
     await listAccounts('my-token')
-    expect(mockedAxios.get.mock.calls[0][1]?.headers?.Authorization).toBe('Bearer my-token')
+    expect(mockedAxios.get.mock.calls[0][1]).toEqual({
+      headers: { Authorization: 'Bearer my-token' },
+      timeout: NETWORK_TIMEOUT,
+    })
   })
 
   it('returns empty array when no accounts', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { results: [] } })
     expect(await listAccounts('token')).toEqual([])
+  })
+
+  it('retries an idempotent account request after a transient response', async () => {
+    const axiosError = Object.assign(new Error('Unavailable'), {
+      isAxiosError: true,
+      response: { status: 503 },
+    })
+    mockedAxios.get.mockRejectedValueOnce(axiosError).mockResolvedValueOnce({ data: { results: [mockAccount] } })
+    mockedAxios.isAxiosError.mockReturnValue(true)
+
+    await expect(listAccounts('token')).resolves.toEqual([mockAccount])
+    expect(mockedAxios.get).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -127,7 +170,10 @@ describe('listCards', () => {
   it('sends Bearer token in Authorization header', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { results: [] } })
     await listCards('my-token')
-    expect(mockedAxios.get.mock.calls[0][1]?.headers?.Authorization).toBe('Bearer my-token')
+    expect(mockedAxios.get.mock.calls[0][1]).toEqual({
+      headers: { Authorization: 'Bearer my-token' },
+      timeout: NETWORK_TIMEOUT,
+    })
   })
 })
 
@@ -144,7 +190,11 @@ describe('getAccountTransactions', () => {
   it('passes from param when provided', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { results: [] } })
     await getAccountTransactions('token', 'acc-1', '2026-04-01')
-    expect(mockedAxios.get.mock.calls[0][1]?.params).toEqual({ from: '2026-04-01' })
+    expect(mockedAxios.get.mock.calls[0][1]).toEqual({
+      headers: { Authorization: 'Bearer token' },
+      timeout: NETWORK_TIMEOUT,
+      params: { from: '2026-04-01' },
+    })
   })
 
   it('passes empty params when from is not provided', async () => {
@@ -173,7 +223,11 @@ describe('getCardTransactions', () => {
   it('passes from param when provided', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { results: [] } })
     await getCardTransactions('token', 'card-1', '2026-04-01')
-    expect(mockedAxios.get.mock.calls[0][1]?.params).toEqual({ from: '2026-04-01' })
+    expect(mockedAxios.get.mock.calls[0][1]).toEqual({
+      headers: { Authorization: 'Bearer token' },
+      timeout: NETWORK_TIMEOUT,
+      params: { from: '2026-04-01' },
+    })
   })
 
   it('passes empty params when from is not provided', async () => {
