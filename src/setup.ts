@@ -10,11 +10,11 @@ import { input, select, checkbox, confirm } from '@inquirer/prompts'
 import fs from 'fs'
 import path from 'path'
 import { z } from 'zod'
-import { exchangeCode, getMe, listAccounts, listCards } from '../src/truelayer/truelayer'
-import { initActual, getAccounts, shutdownActual } from '../src/actual/actual'
-import { readJSON, writeJSON } from '../src/utils/file'
-import { EnvSchema, type FileConfig, type State } from '../src/config/schema'
-import { readSecretFile } from '../src/config/secrets'
+import { exchangeCode, getMe, listAccounts, listCards } from './truelayer/truelayer'
+import { initActual, getAccounts, shutdownActual } from './actual/actual'
+import { readJSON, writeJSON } from './utils/file'
+import { EnvSchema, type FileConfig, type State } from './config/schema'
+import { readSecretFile } from './config/secrets'
 
 // Paths
 const DATA_DIR = path.resolve(__dirname, '..', 'data')

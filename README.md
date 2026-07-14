@@ -28,21 +28,25 @@ Syncs bank and credit card transactions from [TrueLayer](https://truelayer.com/)
 
 ## Docker Setup
 
-Copy the example files and fill in your values:
+Use an immutable `sha-...` image tag from the trusted repository workflow. Create owner-only runtime directories and credential files before starting the container:
 
-```
+```bash
 cp compose.example.yml docker-compose.yml
 cp example.env .env
+install -d -m 0700 data secrets
+install -m 0600 /dev/null secrets/actual-session-token
+install -m 0600 /dev/null secrets/actual-sync-id
+install -m 0600 /dev/null secrets/truelayer-client-secret
 ```
 
-Edit `.env` — see the comments in `example.env` for what each variable does.
+Populate the three credential files without committing them or placing their values in `.env`. The application rejects symlinks, empty files, and any mode other than `0600`.
 
-The key values you need are:
+Edit `.env` with only non-secret settings:
 
-- `ACTUAL_SERVER_URL` — URL of your Actual Budget instance
-- `ACTUAL_SERVER_PASSWORD` — your Actual Budget password
-- `ACTUAL_SYNC_ID` — found under **Settings → Show advanced settings → ID** in Actual Budget
-- `TRUELAYER_CLIENT_ID` and `TRUELAYER_CLIENT_SECRET` — from the TrueLayer Console
+- `ACTUAL_TRUELAYER_SYNC_IMAGE`: immutable published SHA tag or digest
+- `ACTUAL_SERVER_URL`: URL of your Actual Budget instance
+- `TRUELAYER_CLIENT_ID`: public identifier from the TrueLayer Console
+- `CRON_SCHEDULE`: optional schedule; leave unset through setup and acceptance testing
 
 ---
 
@@ -56,7 +60,7 @@ The setup script handles the OAuth flow and writes `config.json` and `state.json
 docker compose run --rm actual-truelayer-sync npm run setup
 ```
 
-**Run locally** (requires Node 20+):
+**Run locally** (requires Node 24+):
 
 ```
 npm install
@@ -69,58 +73,16 @@ The script will:
 2. Build a TrueLayer auth URL for you to open in your browser
 3. Ask you to paste back the redirect URL after authenticating
 4. Let you select which accounts to add and map them to Actual Budget accounts
-5. Write `config.json` and `state.json` to your data directory
+5. Require an inclusive first-import date for every mapped account
+6. Write owner-only `config.json` and `state.json` files to your data directory
 
 Run it again for each additional bank you want to add.
 
 ---
 
-## Adding a Connection Manually
+## Account Discovery
 
-If you prefer not to use the setup script, you can do this with curl.
-
-**Step 1 — Authenticate with your bank**
-
-Open this URL in your browser (substituting your Client ID and choosing the appropriate scope):
-
-For bank accounts:
-
-```
-https://auth.truelayer.com/?response_type=code&client_id=[CLIENT_ID]&scope=accounts%20balance%20transactions%20offline_access&redirect_uri=https://console.truelayer.com/redirect-page&providers=uk-ob-all%20uk-oauth-all&response_mode=query
-```
-
-For credit/charge cards:
-
-```
-https://auth.truelayer.com/?response_type=code&client_id=[CLIENT_ID]&scope=cards%20balance%20transactions%20offline_access&redirect_uri=https://console.truelayer.com/redirect-page&providers=uk-ob-all%20uk-oauth-all&response_mode=query
-```
-
-After authenticating with your bank, you'll be redirected to a URL containing a `code` query parameter.
-
-**Step 2 — Exchange the code for tokens**
-
-```
-curl -X POST https://auth.truelayer.com/connect/token \
-  -d grant_type=authorization_code \
-  -d client_id=[CLIENT_ID] \
-  -d client_secret=[CLIENT_SECRET] \
-  -d redirect_uri=https://console.truelayer.com/redirect-page \
-  -d code=[CODE]
-```
-
-The response contains a `refresh_token`. Add this to `state.json` under the connection name.
-
-**Step 3 — Discover account IDs**
-
-Add a connection to `config.json` with an empty `accounts` array and start the container. The first sync will log all available TrueLayer account IDs for that connection:
-
-```
-[My Bank] Unmatched TrueLayer account (not in config):
-  └ My Current Account (TRANSACTION) — trueLayerId: abc123...
-  └ My Savings Account (SAVINGS)     — trueLayerId: def456...
-```
-
-Add the IDs you want to `config.json` along with the corresponding Actual Budget account IDs (found in the URL when viewing an account in Actual Budget), then restart.
+Use the interactive setup command for OAuth consent, discovery, and mapping. Normal logs deliberately omit TrueLayer and Actual identifiers; manual token exchange and identifier discovery through logs are not supported.
 
 ---
 
@@ -141,25 +103,26 @@ Defines which accounts to sync and how. See `config.example.json` for a full exa
 
 **Connection fields:**
 
-| Field      | Required | Description                                                       |
-| ---------- | -------- | ----------------------------------------------------------------- |
-| `name`     | Yes      | Unique label, used in logs and to match state                     |
-| `isCard`   | No       | Set to `true` if this connection is a credit/charge card provider |
-| `accounts` | Yes      | Array of accounts to sync (empty array = ID discovery mode)       |
+| Field      | Required | Description                                                        |
+| ---------- | -------- | ------------------------------------------------------------------ |
+| `name`     | Yes      | Unique label, used in logs and to match state                      |
+| `isCard`   | No       | Set to `true` if this connection is a credit/charge card provider  |
+| `accounts` | Yes      | Array of mapped accounts; use interactive setup to create mappings |
 
 **Account fields:**
 
-| Field          | Required | Description                                                                                                         |
-| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `trueLayerId`  | Yes      | TrueLayer `account_id` for this account                                                                             |
-| `actualId`     | Yes      | Actual Budget account ID                                                                                            |
-| `friendlyName` | Yes      | Label used in logs                                                                                                  |
-| `flip`         | No       | Inverts transaction amounts. Credit card accounts have amounts flipped automatically; use `flip: false` to override |
-| `isCard`       | No       | Overrides the connection-level `isCard` for this specific account                                                   |
+| Field             | Required | Description                                                                                                         |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `trueLayerId`     | Yes      | TrueLayer `account_id` for this account                                                                             |
+| `actualId`        | Yes      | Actual Budget account ID                                                                                            |
+| `friendlyName`    | Yes      | Label used in logs                                                                                                  |
+| `importStartDate` | Yes      | Inclusive `YYYY-MM-DD` boundary; older provider transactions are always discarded locally                           |
+| `flip`            | No       | Inverts transaction amounts. Credit card accounts have amounts flipped automatically; use `flip: false` to override |
+| `isCard`          | No       | Overrides the connection-level `isCard` for this specific account                                                   |
 
 ### `state.json`
 
-Stores refresh tokens and last sync dates. Written by the app and the setup script — you should not need to edit this manually.
+Stores refresh tokens and last sync dates. Writes are atomic and mode `0600`; you should not edit this file manually.
 
 See `state.example.json` for the expected structure.
 
@@ -178,7 +141,7 @@ docker compose up -d
 By default the sync runs once on startup and exits. Set `CRON_SCHEDULE` in your `.env` to run on a schedule:
 
 ```
-CRON_SCHEDULE=0 */4 * * *   # Every 4 hours
+CRON_SCHEDULE=17 */6 * * *   # Every 6 hours at minute 17
 ```
 
 Set `TZ` to ensure the schedule fires at the expected local time:
@@ -192,6 +155,8 @@ View logs:
 ```
 docker compose logs -f actual-truelayer-sync
 ```
+
+The image health check accepts only fresh successful state. One-shot failures exit nonzero; scheduled failures keep the process available for the next attempt but mark the container unhealthy.
 
 ---
 
@@ -207,7 +172,7 @@ This project has made use of AI tooling throughout development:
 
 - **Code review** — reviewing sync logic, error handling, and edge cases; catching bugs and suggesting improvements
 - **Test writing** — generating unit tests for config loading, sync logic, and transaction mapping
-- **The setup script** — `scripts/setup.ts`, including the OAuth flow, interactive prompts, and file writing logic, was written with AI assistance
+- **The setup script** — `src/setup.ts`, including the OAuth flow, interactive prompts, and file writing logic, was written with AI assistance
 - **Documentation** — this README was written with AI assistance
 
 The intent is to be transparent about this. All AI-generated code has been reviewed and tested by the author.

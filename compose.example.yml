@@ -1,25 +1,25 @@
 services:
   actual-truelayer-sync:
-    image: ghcr.io/sheppy/actual-truelayer-sync:latest
+    image: ${ACTUAL_TRUELAYER_SYNC_IMAGE:?set an immutable sha tag or digest}
     container_name: actual-truelayer-sync
+    user: '1000:1000'
     restart: unless-stopped
-    # depends_on:
-    #   - actual-budget
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./actual-truelayer-sync/data:/app/data # This is where your config.json lives
+      - ./data:/app/data
+      - ./secrets/actual-session-token:/run/secrets/actual-session-token:ro
+      - ./secrets/actual-sync-id:/run/secrets/actual-sync-id:ro
+      - ./secrets/truelayer-client-secret:/run/secrets/truelayer-client-secret:ro
     environment:
-      # - TZ=Europe/London
-      - ACTUAL_SERVER_URL=http://[HOST_IP]:5006
-      - ACTUAL_SERVER_PASSWORD=[PASSWORD]
-      - ACTUAL_SYNC_ID=[SYNC_ID]
-      - TRUELAYER_CLIENT_ID=[TRUELAYER_CLIENT_ID]
-      - TRUELAYER_CLIENT_SECRET=[TRUELAYER_CLIENT_SECRET]
-      - CRON_SCHEDULE=0 */4 * * * # Example: Every 4 hours
-    healthcheck:
-      # Health check that state.json has been modified recently, indicating the sync is running successfully.
-      # 300 minutes (5 hours) against a 4-hour schedule — gives an hour of buffer
-      test: ["CMD-SHELL", "find /app/data/state.json -mmin -300 | grep -q ."]
-      interval: 60s
-      timeout: 5s
-      retries: 3
-      start_period: 120s
+      ACTUAL_SERVER_URL: ${ACTUAL_SERVER_URL:?set Actual server URL}
+      ACTUAL_SESSION_TOKEN_FILE: /run/secrets/actual-session-token
+      ACTUAL_SYNC_ID_FILE: /run/secrets/actual-sync-id
+      TRUELAYER_CLIENT_ID: ${TRUELAYER_CLIENT_ID:?set public TrueLayer client ID}
+      TRUELAYER_CLIENT_SECRET_FILE: /run/secrets/truelayer-client-secret
+      # CRON_SCHEDULE: "17 */6 * * *"
+      TZ: ${TZ:-UTC}
+      LOG_FORMAT: json
