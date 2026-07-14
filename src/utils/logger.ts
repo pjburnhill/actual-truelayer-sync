@@ -12,7 +12,8 @@ function formatPrefixes(prefixes: string[]): string {
 function extractError(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const status = err.response?.status
-    const code = typeof err.response?.data?.error === 'string' ? err.response.data.error : 'request_failed'
+    const rawCode = typeof err.response?.data?.error === 'string' ? err.response.data.error : ''
+    const code = /^[a-z][a-z0-9_-]{0,63}$/.test(rawCode) ? rawCode : 'request_failed'
     return `${status ?? 'network'}:${code}`
   }
   return err instanceof Error ? err.name : 'unknown_error'

@@ -85,6 +85,19 @@ describe('refreshToken', () => {
     )
   })
 
+  it('does not include an unsafe provider error string', async () => {
+    const axiosError = Object.assign(new Error('Request failed'), {
+      isAxiosError: true,
+      response: { status: 400, data: { error: 'Bearer secret-token account-123' } },
+    })
+    mockedAxios.post.mockRejectedValueOnce(axiosError)
+    mockedAxios.isAxiosError.mockReturnValueOnce(true)
+
+    await expect(refreshToken('id', 'secret', 'token')).rejects.toThrow(
+      'TrueLayer request failed: 400 — request_failed',
+    )
+  })
+
   it('rethrows non-axios errors', async () => {
     mockedAxios.post.mockRejectedValueOnce(new Error('Network failure'))
     mockedAxios.isAxiosError.mockReturnValueOnce(false)

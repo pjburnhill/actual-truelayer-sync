@@ -45,4 +45,12 @@ describe('acquireLock', () => {
 
     await expect(fs.access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
+  it('removes a partial lock when creation fails', async () => {
+    vi.spyOn(fs, 'chmod').mockRejectedValueOnce(new Error('chmod failed'))
+
+    await expect(acquireLock(lockPath)).rejects.toThrow('chmod failed')
+
+    await expect(fs.access(lockPath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 })

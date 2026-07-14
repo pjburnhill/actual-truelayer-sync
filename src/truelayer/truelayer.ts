@@ -15,7 +15,8 @@ const AUTH_URL = 'https://auth.truelayer.com/connect/token'
 function sanitiseTrueLayerError(err: unknown): never {
   if (axios.isAxiosError(err)) {
     const status = err.response?.status
-    const code = err.response?.data?.error ?? 'unknown_error'
+    const rawCode = typeof err.response?.data?.error === 'string' ? err.response.data.error : ''
+    const code = /^[a-z][a-z0-9_-]{0,63}$/.test(rawCode) ? rawCode : 'request_failed'
     throw new Error(`TrueLayer request failed: ${status ?? 'no status'} — ${code}`)
   }
   throw err

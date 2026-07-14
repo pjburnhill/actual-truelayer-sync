@@ -8,10 +8,13 @@ async function createLock(lockPath: string): Promise<void> {
   const handle = await fs.open(lockPath, 'wx', 0o600)
   try {
     await handle.writeFile(String(process.pid), 'utf8')
-  } finally {
     await handle.close()
+    await fs.chmod(lockPath, 0o600)
+  } catch (error) {
+    await handle.close().catch(() => {})
+    await fs.unlink(lockPath).catch(() => {})
+    throw error
   }
-  await fs.chmod(lockPath, 0o600)
 }
 
 export async function acquireLock(lockPath: string): Promise<() => Promise<void>> {

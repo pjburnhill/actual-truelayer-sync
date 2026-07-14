@@ -61,6 +61,7 @@ describe('sync runtime', () => {
     expect(acquireLock).toHaveBeenCalledTimes(1)
     expect(release).toHaveBeenCalledTimes(1)
     expect(writeHealth).toHaveBeenLastCalledWith(expect.any(String), 'healthy', 'ok')
+    expect(vi.mocked(writeHealth).mock.invocationCallOrder[0]).toBeLessThan(release.mock.invocationCallOrder[0])
   })
 
   it('reports an unhealthy cycle when downstream work signals failure', async () => {

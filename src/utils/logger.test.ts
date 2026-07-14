@@ -100,6 +100,21 @@ describe('logError — text format', () => {
     for (const value of sensitiveValues) expect(output).not.toContain(value)
   })
 
+  it('rejects provider-controlled error strings that are not safe classes', () => {
+    const axiosError = Object.assign(new Error('Bad Request'), {
+      isAxiosError: true,
+      response: { status: 400, data: { error: 'Bearer secret-token account-123' } },
+    })
+    vi.mocked(axios.isAxiosError).mockReturnValueOnce(true)
+
+    logError(['My Bank'], 'Authentication failed:', axiosError)
+
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringMatching(/\[My Bank] Authentication failed:$/),
+      '400:request_failed',
+    )
+  })
+
   it('logs only an Error class, not its message', () => {
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(false)
     logError(['My Bank'], 'Failed:', new Error('Bearer secret-token account-123'))

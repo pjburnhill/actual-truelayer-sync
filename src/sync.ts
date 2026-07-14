@@ -80,18 +80,23 @@ export async function mainTask(config: Config): Promise<boolean> {
     }
 
     try {
+      await writeHealth(HEALTH_PATH, success ? 'healthy' : 'unhealthy', success ? 'ok' : reason)
+    } catch (error) {
+      success = false
+      logError(['Sync'], 'Failed to update health state.', error)
+    }
+
+    try {
       await release()
     } catch (error) {
       success = false
       reason = preferredFailure(reason, 'sync_failed')
       logError(['Sync'], 'Failed to release persistent lock.', error)
-    }
-
-    try {
-      await writeHealth(HEALTH_PATH, success ? 'healthy' : 'unhealthy', success ? 'ok' : reason)
-    } catch (error) {
-      success = false
-      logError(['Sync'], 'Failed to update health state.', error)
+      try {
+        await writeHealth(HEALTH_PATH, 'unhealthy', reason)
+      } catch (healthError) {
+        logError(['Sync'], 'Failed to update health state.', healthError)
+      }
     }
 
     log(['Sync'], 'Sync cycle finished.')
