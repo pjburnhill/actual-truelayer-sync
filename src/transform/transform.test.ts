@@ -7,6 +7,7 @@ const baseAccount: Account = {
   trueLayerId: 'tl-acc-1',
   actualId: 'actual-acc-1',
   friendlyName: 'My Account',
+  importStartDate: '2026-07-15',
 }
 
 const baseTransaction: TrueLayerTransaction = {

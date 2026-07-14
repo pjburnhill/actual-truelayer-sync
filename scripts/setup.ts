@@ -199,6 +199,7 @@ async function main(): Promise<void> {
     trueLayerId: string
     actualId: string
     friendlyName: string
+    importStartDate: string
     isCard?: boolean
   }
 
@@ -262,10 +263,17 @@ async function main(): Promise<void> {
       }
 
       const abAccount = actualAccounts.find((a) => a.id === actualId)!
+      const importStartDate = (
+        await input({
+          message: `First date to import for "${tlAccount.label}" (YYYY-MM-DD):`,
+          validate: (value) => z.string().date().safeParse(value.trim()).success || 'Enter YYYY-MM-DD',
+        })
+      ).trim()
       const account: MappedAccount = {
         trueLayerId,
         actualId,
         friendlyName: abAccount.name,
+        importStartDate,
       }
       if (connectionType === 'cards') account.isCard = true
       mappedAccounts.push(account)

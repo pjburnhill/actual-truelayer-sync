@@ -5,6 +5,7 @@ import { computeFromDate } from '../utils/date'
 import { resolveIsCard } from '../utils/account'
 import { buildImportSummary } from '../utils/logging'
 import { log, logError } from '../utils/logger'
+import { filterTransactionsByStartDate } from './cutoff'
 import type { Account, Connection } from '../config/schema'
 import type { TrueLayerAccount, TrueLayerCard, TrueLayerTransaction } from '../truelayer/types'
 
@@ -45,9 +46,10 @@ export async function syncAccount({
     return false
   }
 
+  const eligibleTransactions = filterTransactionsByStartDate(trueLayerTransactions, configAccount.importStartDate)
   const trueLayerAccount = trueLayerAccountsById.get(configAccount.trueLayerId)
   const transactions = transformTransactions(
-    trueLayerTransactions,
+    eligibleTransactions,
     configAccount,
     trueLayerAccount,
     includeCategoryInNotes,
@@ -59,7 +61,7 @@ export async function syncAccount({
   }
 
   log(prefix, `└ Found ${transactions.length} transactions.`)
-  const dates = trueLayerTransactions.map((t) => t.timestamp).sort()
+  const dates = eligibleTransactions.map((t) => t.timestamp).sort()
   const from = dates[0].slice(0, 10)
   const to = dates[dates.length - 1].slice(0, 10)
 

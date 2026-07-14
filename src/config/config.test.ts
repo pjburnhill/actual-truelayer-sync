@@ -12,6 +12,7 @@ describe('AccountSchema', () => {
     trueLayerId: 'tl-acc-1',
     actualId: 'actual-acc-1',
     friendlyName: 'My Account',
+    importStartDate: '2026-07-15',
   }
 
   it('accepts a minimal valid account', () => {
@@ -42,6 +43,12 @@ describe('AccountSchema', () => {
     expect(AccountSchema.safeParse(rest).success).toBe(false)
   })
 
+  it('rejects a missing or invalid importStartDate', () => {
+    const { importStartDate: _, ...rest } = validAccount
+    expect(AccountSchema.safeParse(rest).success).toBe(false)
+    expect(AccountSchema.safeParse({ ...validAccount, importStartDate: '15-07-2026' }).success).toBe(false)
+  })
+
   it('rejects a non-boolean flip', () => {
     expect(AccountSchema.safeParse({ ...validAccount, flip: 'yes' }).success).toBe(false)
   })
@@ -64,7 +71,7 @@ describe('ConnectionSchema', () => {
   it('accepts a connection with accounts', () => {
     const result = ConnectionSchema.safeParse({
       ...validConnection,
-      accounts: [{ trueLayerId: 'tl-1', actualId: 'a-1', friendlyName: 'Acc' }],
+      accounts: [{ trueLayerId: 'tl-1', actualId: 'a-1', friendlyName: 'Acc', importStartDate: '2026-07-15' }],
     })
     expect(result.success).toBe(true)
   })

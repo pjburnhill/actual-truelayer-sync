@@ -18,6 +18,7 @@ const baseAccount: Account = {
   trueLayerId: 'acc-1',
   actualId: 'actual-acc-1',
   friendlyName: 'Current Account',
+  importStartDate: '2026-04-01',
 }
 
 const mockTrueLayerAccount: TrueLayerAccount = {
@@ -90,6 +91,20 @@ describe('syncAccount', () => {
     await syncAccount({ ...baseOptions, configAccount: baseAccount, trueLayerAccountsById: emptyAccountsById })
 
     expect(actual.importTransactions).not.toHaveBeenCalled()
+  })
+
+  it('imports only transactions on or after the configured cutoff', async () => {
+    vi.mocked(truelayer.getAccountTransactions).mockResolvedValueOnce([
+      { ...mockTransaction, transaction_id: 'before-cutoff', timestamp: '2026-03-31T10:00:00Z' },
+      { ...mockTransaction, transaction_id: 'on-cutoff', timestamp: '2026-04-01T10:00:00Z' },
+    ])
+    vi.mocked(actual.importTransactions).mockResolvedValueOnce({ added: ['on-cutoff'], updated: [] })
+
+    await syncAccount({ ...baseOptions, configAccount: baseAccount })
+
+    expect(actual.importTransactions).toHaveBeenCalledWith('actual-acc-1', [
+      expect.objectContaining({ imported_id: 'on-cutoff', date: '2026-04-01' }),
+    ])
   })
 
   it('returns true after successful import', async () => {

@@ -5,6 +5,7 @@ export const AccountSchema = z.object({
   trueLayerId: z.string().min(1),
   actualId: z.string().min(1),
   friendlyName: z.string().min(1),
+  importStartDate: z.string().date(),
   isCard: z.boolean().optional(),
   flip: z.boolean().optional(),
 })
