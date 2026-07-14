@@ -12,6 +12,7 @@
     "dev:setup": "tsx --env-file=.env scripts/setup.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:dependencies": "node scripts/check-dependencies.mjs",
     "check:types": "tsc --project tsconfig.build.json --noEmit",
     "docker:build": "docker build -t actual-truelayer-sync .",
     "docker:run": "docker run --rm --env-file=.env -v ./data:/app/data actual-truelayer-sync"
@@ -22,7 +23,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@actual-app/api": "26.6.0",
+    "@actual-app/api": "26.7.0",
     "@inquirer/prompts": "8.4.2",
     "axios": "1.17.0",
     "node-cron": "4.2.1",
