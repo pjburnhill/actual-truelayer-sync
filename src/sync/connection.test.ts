@@ -52,8 +52,42 @@ const baseConfig: Config = {
   },
 }
 
+const noopRefreshToken = async (): Promise<void> => {}
+
 describe('syncConnection', () => {
   beforeEach(() => vi.clearAllMocks())
+
+  it('persists a rotated refresh token before downstream account work', async () => {
+    const onRefreshToken = vi.fn(async () => {})
+    vi.mocked(truelayer.refreshToken).mockResolvedValueOnce({
+      access_token: 'new-access',
+      refresh_token: 'new-refresh',
+    })
+    vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
+    vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
+
+    await syncConnection(baseConnection, baseConfig, { onRefreshToken })
+
+    expect(onRefreshToken).toHaveBeenCalledWith('new-refresh')
+    expect(onRefreshToken.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(accounts.fetchAccountMap).mock.invocationCallOrder[0],
+    )
+  })
+
+  it('keeps the rotated token persisted when downstream account discovery fails', async () => {
+    const onRefreshToken = vi.fn(async () => {})
+    vi.mocked(truelayer.refreshToken).mockResolvedValueOnce({
+      access_token: 'new-access',
+      refresh_token: 'new-refresh',
+    })
+    vi.mocked(accounts.fetchAccountMap).mockRejectedValueOnce(new Error('API error'))
+
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken })
+
+    expect(onRefreshToken).toHaveBeenCalledTimes(1)
+    expect(onRefreshToken).toHaveBeenCalledWith('new-refresh')
+    expect(result?.refreshToken).toBe('new-refresh')
+  })
 
   it('returns a ConnectionState with the new refresh token', async () => {
     vi.mocked(truelayer.refreshToken).mockResolvedValueOnce({
@@ -63,7 +97,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
 
-    const result = await syncConnection(baseConnection, baseConfig)
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(result?.refreshToken).toBe('new-refresh')
   })
@@ -76,7 +110,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
 
-    await syncConnection(baseConnection, baseConfig)
+    await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(accounts.fetchAccountMap).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Bank' }), 'new-access')
   })
@@ -89,7 +123,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
 
-    await syncConnection(baseConnection, baseConfig)
+    await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(account.syncAccount).toHaveBeenCalledTimes(1)
     expect(account.syncAccount).toHaveBeenCalledWith(
@@ -123,7 +157,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
 
-    await syncConnection(baseConnection, configWithState)
+    await syncConnection(baseConnection, configWithState, { onRefreshToken: noopRefreshToken })
 
     expect(account.syncAccount).toHaveBeenCalledWith(expect.objectContaining({ lastSyncDate: '2026-04-24' }))
   })
@@ -136,7 +170,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(true)
 
-    const result = await syncConnection(baseConnection, baseConfig)
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(result?.accounts['acc-1']?.lastSyncDate).toBe(new Date().toISOString().slice(0, 10))
   })
@@ -149,7 +183,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
 
-    const result = await syncConnection(baseConnection, baseConfig)
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(result?.accounts['acc-1']).toBeUndefined()
   })
@@ -162,7 +196,7 @@ describe('syncConnection', () => {
     vi.mocked(truelayer.refreshToken).mockRejectedValueOnce(axiosError)
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(true)
 
-    const result = await syncConnection(baseConnection, baseConfig)
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(result).toBeUndefined()
     expect(accounts.fetchAccountMap).not.toHaveBeenCalled()
@@ -172,7 +206,7 @@ describe('syncConnection', () => {
     vi.mocked(truelayer.refreshToken).mockRejectedValueOnce(new Error('Network failure'))
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(false)
 
-    const result = await syncConnection(baseConnection, baseConfig)
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(result).toBeUndefined()
   })
@@ -185,7 +219,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockRejectedValueOnce(new Error('API error'))
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(false)
 
-    const result = await syncConnection(baseConnection, baseConfig)
+    const result = await syncConnection(baseConnection, baseConfig, { onRefreshToken: noopRefreshToken })
 
     expect(result?.refreshToken).toBe('new-refresh')
     expect(result?.accounts).toEqual({})
@@ -194,7 +228,7 @@ describe('syncConnection', () => {
   it('returns undefined when no state entry exists for the connection', async () => {
     const configWithNoState: Config = { ...baseConfig, state: { connections: {} } }
 
-    const result = await syncConnection(baseConnection, configWithNoState)
+    const result = await syncConnection(baseConnection, configWithNoState, { onRefreshToken: noopRefreshToken })
 
     expect(result).toBeUndefined()
     expect(truelayer.refreshToken).not.toHaveBeenCalled()
@@ -208,7 +242,7 @@ describe('syncConnection', () => {
     vi.mocked(accounts.fetchAccountMap).mockResolvedValueOnce(new Map())
     vi.mocked(account.syncAccount).mockResolvedValueOnce(false)
 
-    await syncConnection(baseConnection, baseConfig, true)
+    await syncConnection(baseConnection, baseConfig, { dryRun: true, onRefreshToken: noopRefreshToken })
 
     expect(account.syncAccount).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }))
   })

@@ -7,10 +7,15 @@ import { getConnectionState, getAccountLastSyncDate } from '../config/state'
 import type { Connection, Config, ConnectionState } from '../config/schema'
 import type { TrueLayerAccount, TrueLayerCard } from '../truelayer/types'
 
+type SyncConnectionOptions = {
+  dryRun?: boolean
+  onRefreshToken: (refreshToken: string) => Promise<void>
+}
+
 export async function syncConnection(
   connection: Connection,
   config: Config,
-  dryRun = false,
+  { dryRun = false, onRefreshToken }: SyncConnectionOptions,
 ): Promise<ConnectionState | undefined> {
   const connectionState = getConnectionState(config.state, connection.name)
   if (!connectionState) {
@@ -32,6 +37,7 @@ export async function syncConnection(
     )
     accessToken = access_token
     newRefreshToken = refresh_token
+    await onRefreshToken(newRefreshToken)
   } catch (err) {
     logError(prefix, 'Authentication failed:', err)
     return undefined

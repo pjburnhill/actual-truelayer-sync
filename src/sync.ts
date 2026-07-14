@@ -17,7 +17,15 @@ async function mainTask(config: Config): Promise<void> {
     })
 
     for (const connection of config.connections) {
-      const result = await syncConnection(connection, config, dryRun)
+      const result = await syncConnection(connection, config, {
+        dryRun,
+        onRefreshToken: async (refreshToken) => {
+          const connectionState = config.state.connections[connection.name]
+          if (!connectionState) return
+          config.state.connections[connection.name] = { ...connectionState, refreshToken }
+          await writeState(config)
+        },
+      })
       if (result) {
         config.state.connections[connection.name] = result
         await writeState(config)
