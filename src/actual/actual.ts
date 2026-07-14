@@ -1,5 +1,6 @@
 import actual from '@actual-app/api'
 import type { ActualAuth } from '../config/schema'
+import { logError } from '../utils/logger'
 
 interface InitOptions {
   serverURL: string
@@ -32,7 +33,8 @@ export async function importTransactions(
 ): Promise<{ added: string[]; updated: string[] }> {
   const result = await actual.importTransactions(accountId, transactions)
   if (result.errors.length > 0) {
-    throw new Error(`Import errors for account ${accountId}: ${JSON.stringify(result.errors)}`)
+    logError(['Actual'], `Rejected ${result.errors.length} transaction record${result.errors.length === 1 ? '' : 's'}.`)
+    throw new Error('ActualImportError')
   }
   return { added: result.added, updated: result.updated }
 }

@@ -9,8 +9,13 @@ function formatPrefixes(prefixes: string[]): string {
   return prefixes.map((prefix) => `[${prefix}]`).join('')
 }
 
-function extractError(err: unknown): unknown {
-  return axios.isAxiosError(err) ? (err.response?.data ?? err.message) : err instanceof Error ? err.message : err
+function extractError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const status = err.response?.status
+    const code = typeof err.response?.data?.error === 'string' ? err.response.data.error : 'request_failed'
+    return `${status ?? 'network'}:${code}`
+  }
+  return err instanceof Error ? err.name : 'unknown_error'
 }
 
 export function log(prefixes: string[], message: string): void {

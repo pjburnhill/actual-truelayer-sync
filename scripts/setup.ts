@@ -221,7 +221,7 @@ async function main(): Promise<void> {
       actualAccounts = all.filter((a) => !a.closed && !mappedActualIds.has(a.id))
     } catch (err) {
       console.error(`Could not connect to Actual Budget: ${err instanceof Error ? err.message : String(err)}`)
-      console.log('Skipping account mapping — add actualId values to config.json manually.\n')
+      console.log('Skipping account mapping; add the account mappings to config.json manually.\n')
     } finally {
       try {
         await shutdownActual()
@@ -258,7 +258,7 @@ async function main(): Promise<void> {
           default: tlAccount.label,
         })
         skippedAccounts.push({ ...tlAccount, friendlyName: friendlyName.trim() || tlAccount.label })
-        console.log(`  Skipped. Add this manually to config.json: trueLayerId = "${trueLayerId}"`)
+        console.log('  Skipped. Add this account manually after setup.')
         continue
       }
 
@@ -290,7 +290,7 @@ async function main(): Promise<void> {
   console.log(`Type            : ${connectionType}`)
   console.log(`Accounts to add : ${mappedAccounts.length}`)
   for (const a of mappedAccounts) {
-    console.log(`  • ${a.friendlyName} (${a.trueLayerId} → ${a.actualId})`)
+    console.log(`  • ${a.friendlyName} (imports from ${a.importStartDate})`)
   }
   if (skippedAccounts.length > 0) {
     console.log(`Skipped         : ${skippedAccounts.map((a) => a.friendlyName ?? a.label).join(', ')}`)
@@ -339,7 +339,7 @@ async function main(): Promise<void> {
   if (skippedAccounts.length > 0) {
     console.log('\nRemember to add these accounts to config.json once created in Actual Budget:')
     for (const a of skippedAccounts) {
-      console.log(`  • ${a.friendlyName ?? a.label}  —  trueLayerId: "${a.id}"`)
+      console.log(`  • ${a.friendlyName ?? a.label}`)
     }
   }
 }
