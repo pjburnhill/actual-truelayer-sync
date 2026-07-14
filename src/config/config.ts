@@ -1,8 +1,9 @@
-import fs from 'fs/promises'
 import path from 'path'
+import { z } from 'zod'
 import { log, logError } from '../utils/logger'
 import { Config, EnvSchema, FileConfig, FileConfigSchema, State, StateSchema } from './schema'
 import { readJSON, writeJSON } from '../utils/file'
+import { readSecretFile } from './secrets'
 
 const CONFIG_PATH = path.resolve(__dirname, '..', '..', 'data', 'config.json')
 const STATE_PATH = path.resolve(__dirname, '..', '..', 'data', 'state.json')
@@ -47,7 +48,27 @@ export async function loadConfig(): Promise<Config> {
     }
   }
 
-  return { ...fileResult.data, env: envResult.data, state: stateResult.data }
+  const trueLayerClientSecret = await readSecretFile(
+    envResult.data.TRUELAYER_CLIENT_SECRET_FILE,
+    'TrueLayer client secret',
+  )
+  const actualSyncId = await readSecretFile(envResult.data.ACTUAL_SYNC_ID_FILE, 'Actual Sync ID')
+  const actualAuth = envResult.data.ACTUAL_SESSION_TOKEN_FILE
+    ? {
+        sessionToken: await readSecretFile(envResult.data.ACTUAL_SESSION_TOKEN_FILE, 'Actual session token'),
+      }
+    : { password: await readSecretFile(envResult.data.ACTUAL_PASSWORD_FILE!, 'Actual password') }
+
+  return {
+    ...fileResult.data,
+    env: envResult.data,
+    state: stateResult.data,
+    secrets: {
+      trueLayerClientSecret,
+      actualAuth,
+      actualSyncId: z.uuid().parse(actualSyncId),
+    },
+  }
 }
 
 export async function writeState(config: Config): Promise<void> {

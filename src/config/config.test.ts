@@ -1,5 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AccountSchema, ConnectionSchema, EnvSchema, FileConfigSchema, StateSchema } from './schema'
+import { loadConfig } from './config'
+import { readSecretFile } from './secrets'
+import { readJSON } from '../utils/file'
+
+vi.mock('./secrets', () => ({ readSecretFile: vi.fn() }))
+vi.mock('../utils/file', () => ({ readJSON: vi.fn(), writeJSON: vi.fn() }))
 
 describe('AccountSchema', () => {
   const validAccount = {
@@ -174,10 +180,10 @@ describe('StateSchema', () => {
 describe('EnvSchema', () => {
   const validEnv = {
     TRUELAYER_CLIENT_ID: 'client-id',
-    TRUELAYER_CLIENT_SECRET: 'client-secret',
+    TRUELAYER_CLIENT_SECRET_FILE: '/run/secrets/truelayer-client-secret',
     ACTUAL_SERVER_URL: 'http://localhost:5006',
-    ACTUAL_SERVER_PASSWORD: 'password',
-    ACTUAL_SYNC_ID: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    ACTUAL_SESSION_TOKEN_FILE: '/run/secrets/actual-session-token',
+    ACTUAL_SYNC_ID_FILE: '/run/secrets/actual-sync-id',
   }
 
   it('accepts valid minimal env', () => {
@@ -198,8 +204,11 @@ describe('EnvSchema', () => {
     expect(EnvSchema.safeParse({ ...validEnv, ACTUAL_SERVER_URL: 'not-a-url' }).success).toBe(false)
   })
 
-  it('rejects an invalid ACTUAL_SYNC_ID', () => {
-    expect(EnvSchema.safeParse({ ...validEnv, ACTUAL_SYNC_ID: 'not-a-uuid' }).success).toBe(false)
+  it('accepts an Actual password file instead of a session token file', () => {
+    const { ACTUAL_SESSION_TOKEN_FILE: _, ...withoutSessionToken } = validEnv
+    expect(
+      EnvSchema.safeParse({ ...withoutSessionToken, ACTUAL_PASSWORD_FILE: '/run/secrets/actual-password' }).success,
+    ).toBe(true)
   })
 
   it('rejects an invalid CRON_SCHEDULE', () => {
@@ -211,13 +220,87 @@ describe('EnvSchema', () => {
     expect(EnvSchema.safeParse(rest).success).toBe(false)
   })
 
-  it('rejects missing TRUELAYER_CLIENT_SECRET', () => {
-    const { TRUELAYER_CLIENT_SECRET: _, ...rest } = validEnv
+  it('rejects missing TRUELAYER_CLIENT_SECRET_FILE', () => {
+    const { TRUELAYER_CLIENT_SECRET_FILE: _, ...rest } = validEnv
     expect(EnvSchema.safeParse(rest).success).toBe(false)
   })
 
-  it('rejects missing ACTUAL_SERVER_PASSWORD', () => {
-    const { ACTUAL_SERVER_PASSWORD: _, ...rest } = validEnv
+  it('rejects missing Actual credential files', () => {
+    const { ACTUAL_SESSION_TOKEN_FILE: _, ...rest } = validEnv
     expect(EnvSchema.safeParse(rest).success).toBe(false)
+  })
+
+  it('rejects both Actual credential files', () => {
+    expect(EnvSchema.safeParse({ ...validEnv, ACTUAL_PASSWORD_FILE: '/run/secrets/actual-password' }).success).toBe(
+      false,
+    )
+  })
+})
+
+describe('loadConfig secret hydration', () => {
+  const originalEnv = process.env
+  const fileConfig = {
+    version: 2,
+    connections: [{ name: 'My Bank', accounts: [] }],
+  }
+  const state = {
+    connections: { 'My Bank': { refreshToken: 'refresh-token', accounts: {} } },
+  }
+
+  beforeEach(() => {
+    process.env = {
+      TRUELAYER_CLIENT_ID: 'client-id',
+      TRUELAYER_CLIENT_SECRET_FILE: '/run/secrets/truelayer-client-secret',
+      ACTUAL_SERVER_URL: 'http://localhost:5006',
+      ACTUAL_SESSION_TOKEN_FILE: '/run/secrets/actual-session-token',
+      ACTUAL_SYNC_ID_FILE: '/run/secrets/actual-sync-id',
+    }
+    vi.mocked(readJSON)
+      .mockResolvedValueOnce(fileConfig as never)
+      .mockResolvedValueOnce(state as never)
+    vi.mocked(readSecretFile).mockImplementation(async (file) => {
+      if (file.endsWith('truelayer-client-secret')) return 'client-secret'
+      if (file.endsWith('actual-sync-id')) return 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+      return 'session-token'
+    })
+  })
+
+  afterEach(() => {
+    process.env = originalEnv
+    vi.clearAllMocks()
+  })
+
+  it('hydrates a TrueLayer secret, Sync ID, and Actual session token', async () => {
+    const config = await loadConfig()
+
+    expect(config.secrets).toEqual({
+      trueLayerClientSecret: 'client-secret',
+      actualAuth: { sessionToken: 'session-token' },
+      actualSyncId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    })
+    expect(readSecretFile).toHaveBeenCalledTimes(3)
+  })
+
+  it('hydrates an Actual password when its protected file is configured', async () => {
+    delete process.env.ACTUAL_SESSION_TOKEN_FILE
+    process.env.ACTUAL_PASSWORD_FILE = '/run/secrets/actual-password'
+    vi.mocked(readSecretFile).mockImplementation(async (file) => {
+      if (file.endsWith('truelayer-client-secret')) return 'client-secret'
+      if (file.endsWith('actual-sync-id')) return 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+      return 'password'
+    })
+
+    const config = await loadConfig()
+
+    expect(config.secrets.actualAuth).toEqual({ password: 'password' })
+  })
+
+  it('rejects an invalid Sync ID read from the protected file', async () => {
+    vi.mocked(readSecretFile).mockImplementation(async (file) => {
+      if (file.endsWith('actual-sync-id')) return 'not-a-uuid'
+      return 'secret-value'
+    })
+
+    await expect(loadConfig()).rejects.toThrow('Invalid UUID')
   })
 })

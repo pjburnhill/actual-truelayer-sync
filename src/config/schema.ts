@@ -27,20 +27,27 @@ export const FileConfigSchema = z
     path: ['connections'],
   })
 
-export const EnvSchema = z.object({
-  TRUELAYER_CLIENT_ID: z.string().min(1),
-  TRUELAYER_CLIENT_SECRET: z.string().min(1),
-  ACTUAL_SERVER_URL: z.url(),
-  ACTUAL_SERVER_PASSWORD: z.string().min(1),
-  ACTUAL_SYNC_ID: z.uuid(),
-  CRON_SCHEDULE: z
-    .string()
-    .optional()
-    .refine((val) => val === undefined || cron.validate(val), { message: 'Invalid cron expression' }),
-  DEBUG: z.string().optional(),
-  TZ: z.string().optional(),
-  LOG_FORMAT: z.enum(['text', 'json']).default('json'),
-})
+export const EnvSchema = z
+  .object({
+    TRUELAYER_CLIENT_ID: z.string().min(1),
+    TRUELAYER_CLIENT_SECRET_FILE: z.string().min(1),
+    ACTUAL_SERVER_URL: z.url(),
+    ACTUAL_PASSWORD_FILE: z.string().min(1).optional(),
+    ACTUAL_SESSION_TOKEN_FILE: z.string().min(1).optional(),
+    ACTUAL_SYNC_ID_FILE: z.string().min(1),
+    CRON_SCHEDULE: z
+      .string()
+      .optional()
+      .refine((val) => val === undefined || cron.validate(val), { message: 'Invalid cron expression' }),
+    DEBUG: z.string().optional(),
+    TZ: z.string().optional(),
+    LOG_FORMAT: z.enum(['text', 'json']).default('json'),
+  })
+  .superRefine((env, ctx) => {
+    if (Boolean(env.ACTUAL_PASSWORD_FILE) === Boolean(env.ACTUAL_SESSION_TOKEN_FILE)) {
+      ctx.addIssue({ code: 'custom', message: 'Exactly one Actual credential file is required' })
+    }
+  })
 
 export const AccountStateSchema = z.object({
   lastSyncDate: z.string().date().optional(),
@@ -63,7 +70,16 @@ export type ConnectionState = z.infer<typeof ConnectionStateSchema>
 export type Env = z.infer<typeof EnvSchema>
 export type State = z.infer<typeof StateSchema>
 
+export type ActualAuth = { password: string; sessionToken?: never } | { sessionToken: string; password?: never }
+
+export type RuntimeSecrets = {
+  trueLayerClientSecret: string
+  actualAuth: ActualAuth
+  actualSyncId: string
+}
+
 export type Config = FileConfig & {
   env: Env
   state: State
+  secrets: RuntimeSecrets
 }

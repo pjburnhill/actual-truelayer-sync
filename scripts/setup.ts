@@ -13,7 +13,8 @@ import { z } from 'zod'
 import { exchangeCode, getMe, listAccounts, listCards } from '../src/truelayer/truelayer'
 import { initActual, getAccounts, shutdownActual } from '../src/actual/actual'
 import { readJSON, writeJSON } from '../src/utils/file'
-import type { FileConfig, State } from '../src/config/schema'
+import { EnvSchema, type FileConfig, type State } from '../src/config/schema'
+import { readSecretFile } from '../src/config/secrets'
 
 // Paths
 const DATA_DIR = path.resolve(__dirname, '..', 'data')
@@ -55,21 +56,18 @@ async function main(): Promise<void> {
   console.log('\nactual-truelayer-sync — connection setup\n')
 
   // 1. Validate environment
-  const SetupEnvSchema = z.object({
-    TRUELAYER_CLIENT_ID: z.string().min(1),
-    TRUELAYER_CLIENT_SECRET: z.string().min(1),
-    ACTUAL_SERVER_URL: z.url(),
-    ACTUAL_SERVER_PASSWORD: z.string().min(1),
-    ACTUAL_SYNC_ID: z.uuid(),
-  })
-
-  const envResult = SetupEnvSchema.safeParse(process.env)
+  const envResult = EnvSchema.safeParse(process.env)
   if (!envResult.success) {
     const missing = envResult.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n')
     console.error(`Missing or invalid environment variables:\n${missing}`)
     process.exit(1)
   }
   const env = envResult.data
+  const trueLayerClientSecret = await readSecretFile(env.TRUELAYER_CLIENT_SECRET_FILE, 'TrueLayer client secret')
+  const actualSyncId = z.uuid().parse(await readSecretFile(env.ACTUAL_SYNC_ID_FILE, 'Actual Sync ID'))
+  const actualAuth = env.ACTUAL_SESSION_TOKEN_FILE
+    ? { sessionToken: await readSecretFile(env.ACTUAL_SESSION_TOKEN_FILE, 'Actual session token') }
+    : { password: await readSecretFile(env.ACTUAL_PASSWORD_FILE!, 'Actual password') }
 
   // 2. Load existing config / state (may not exist on first run)
   const existingConfig = await tryReadJSON<FileConfig>(CONFIG_PATH)
@@ -126,7 +124,7 @@ async function main(): Promise<void> {
   let accessToken: string
   let newRefreshToken: string
   try {
-    const tokens = await exchangeCode(env.TRUELAYER_CLIENT_ID, env.TRUELAYER_CLIENT_SECRET, code, redirectUri)
+    const tokens = await exchangeCode(env.TRUELAYER_CLIENT_ID, trueLayerClientSecret, code, redirectUri)
     accessToken = tokens.access_token
     newRefreshToken = tokens.refresh_token
   } catch (err) {
@@ -214,8 +212,8 @@ async function main(): Promise<void> {
     try {
       await initActual({
         serverURL: env.ACTUAL_SERVER_URL,
-        password: env.ACTUAL_SERVER_PASSWORD,
-        syncId: env.ACTUAL_SYNC_ID,
+        auth: actualAuth,
+        syncId: actualSyncId,
         verbose: false,
       })
       const all = await getAccounts()

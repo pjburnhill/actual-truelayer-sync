@@ -27,7 +27,7 @@ export async function syncConnection(
   try {
     const { access_token, refresh_token } = await refreshToken(
       config.env.TRUELAYER_CLIENT_ID,
-      config.env.TRUELAYER_CLIENT_SECRET,
+      config.secrets.trueLayerClientSecret,
       connectionState.refreshToken,
     )
     accessToken = access_token

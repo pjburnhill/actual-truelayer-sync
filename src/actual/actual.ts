@@ -1,16 +1,25 @@
 import actual from '@actual-app/api'
+import type { ActualAuth } from '../config/schema'
 
 interface InitOptions {
   serverURL: string
-  password: string
+  auth: ActualAuth
   syncId: string
   verbose: boolean
 }
 
 export async function initActual(options: InitOptions): Promise<void> {
-  await actual.init({
+  await (
+    actual.init as (options: {
+      serverURL: string
+      password?: string
+      sessionToken?: string
+      verbose: boolean
+      dataDir: string
+    }) => Promise<void>
+  )({
     serverURL: options.serverURL,
-    password: options.password,
+    ...options.auth,
     verbose: options.verbose,
     dataDir: './data',
   })

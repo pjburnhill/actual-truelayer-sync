@@ -11,8 +11,8 @@ async function mainTask(config: Config): Promise<void> {
   try {
     await initActual({
       serverURL: config.env.ACTUAL_SERVER_URL,
-      password: config.env.ACTUAL_SERVER_PASSWORD,
-      syncId: config.env.ACTUAL_SYNC_ID,
+      auth: config.secrets.actualAuth,
+      syncId: config.secrets.actualSyncId,
       verbose: !!config.env.DEBUG,
     })
 

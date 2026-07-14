@@ -24,11 +24,16 @@ const baseConfig: Config = {
   connections: [baseConnection],
   env: {
     TRUELAYER_CLIENT_ID: 'client-id',
-    TRUELAYER_CLIENT_SECRET: 'client-secret',
+    TRUELAYER_CLIENT_SECRET_FILE: '/run/secrets/truelayer-client-secret',
     ACTUAL_SERVER_URL: 'http://localhost:5006',
-    ACTUAL_SERVER_PASSWORD: 'password',
-    ACTUAL_SYNC_ID: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+    ACTUAL_SESSION_TOKEN_FILE: '/run/secrets/actual-session-token',
+    ACTUAL_SYNC_ID_FILE: '/run/secrets/actual-sync-id',
     LOG_FORMAT: 'json',
+  },
+  secrets: {
+    trueLayerClientSecret: 'client-secret',
+    actualAuth: { sessionToken: 'session-token' },
+    actualSyncId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   },
   state: {
     connections: {
@@ -113,9 +118,7 @@ describe('syncConnection', () => {
 
     await syncConnection(baseConnection, configWithState)
 
-    expect(account.syncAccount).toHaveBeenCalledWith(
-      expect.objectContaining({ lastSyncDate: '2026-04-24' }),
-    )
+    expect(account.syncAccount).toHaveBeenCalledWith(expect.objectContaining({ lastSyncDate: '2026-04-24' }))
   })
 
   it('returns updated accounts with lastSyncDate when syncAccount returns true', async () => {
